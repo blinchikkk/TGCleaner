@@ -70,21 +70,30 @@ async def mute_all_channels(account):
     await client.start(phone_number)
     logging.info(f"Начинаю заглушение всех каналов для аккаунта {account[4]}")
 
+    dialogs_count = 0
     async for dialog in client.iter_dialogs():
         if dialog.is_channel:
-            try:
-                await client(UpdateNotifySettingsRequest(
-                    peer=dialog.entity,
-                    settings=InputPeerNotifySettings(
-                        show_previews=False,
-                        silent=True,
-                        mute_until=int((datetime.now() + timedelta(weeks=1)).timestamp())
-                    )
-                ))
-                logging.info(f"Канал {dialog.name} заглушен.")
-            except FloodWaitError as e:
-                logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
-                await asyncio.sleep(e.seconds)
+            dialogs_count += 1
+
+    with alive_bar(dialogs_count, title='Заглушение всех каналов...') as bar:
+        async for dialog in client.iter_dialogs():
+            if dialog.is_channel:
+                while True:
+                    try:
+                        await client(UpdateNotifySettingsRequest(
+                            peer=dialog.entity,
+                            settings=InputPeerNotifySettings(
+                                show_previews=False,
+                                silent=True,
+                                mute_until=int((datetime.now() + timedelta(weeks=1)).timestamp())
+                            )
+                        ))
+                        logging.info(f"Канал {dialog.name} заглушен.")
+                        break
+                    except FloodWaitError as e:
+                        logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
+                        await asyncio.sleep(e.seconds)
+                bar()
     print("Все каналы заглушены на 1 неделю.")
     await client.disconnect()
 
@@ -108,27 +117,29 @@ async def delete_inactive_chats(account):
                 if dialog.id == 777000:
                     bar()
                     continue
-                try:
-                    last_message = await client.get_messages(dialog.id, limit=1)
-                    if last_message:
-                        last_message_date = last_message[0].date
-                        if last_message_date.replace(tzinfo=timezone.utc) < threshold_date:
-                            try:
-                                await client(DeleteHistoryRequest(
-                                    peer=dialog.entity,
-                                    max_id=0,
-                                    just_clear=False,
-                                    revoke=True
-                                ))
-                                if hasattr(dialog, 'username') and dialog.username:
-                                    logging.info(f"Чат с {dialog.name} удален за неактивность. Ссылка: https://t.me/{dialog.username}")
-                                else:
-                                    logging.info(f"Чат с {dialog.name} удален за неактивность. ID: {dialog.id}")
-                            except ChatAdminRequiredError:
-                                logging.warning(f"Недостаточно прав для удаления чата с {dialog.name}")
-                except FloodWaitError as e:
-                    logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
-                    await asyncio.sleep(e.seconds)
+                while True:
+                    try:
+                        last_message = await client.get_messages(dialog.id, limit=1)
+                        if last_message:
+                            last_message_date = last_message[0].date
+                            if last_message_date.replace(tzinfo=timezone.utc) < threshold_date:
+                                try:
+                                    await client(DeleteHistoryRequest(
+                                        peer=dialog.entity,
+                                        max_id=0,
+                                        just_clear=False,
+                                        revoke=True
+                                    ))
+                                    if hasattr(dialog, 'username') and dialog.username:
+                                        logging.info(f"Чат с {dialog.name} удален за неактивность. Ссылка: https://t.me/{dialog.username}")
+                                    else:
+                                        logging.info(f"Чат с {dialog.name} удален за неактивность. ID: {dialog.id}")
+                                except ChatAdminRequiredError:
+                                    logging.warning(f"Недостаточно прав для удаления чата с {dialog.name}")
+                        break
+                    except FloodWaitError as e:
+                        logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
+                        await asyncio.sleep(e.seconds)
                 bar()
     print("Неактивные чаты удалены.")
     await client.disconnect()
@@ -150,34 +161,36 @@ async def leave_inactive_chats_and_channels(account):
     with alive_bar(dialogs_count, title='Выход из неактивных каналов и чатов...') as bar:
         async for dialog in client.iter_dialogs():
             if dialog.is_channel or dialog.is_group:
-                try:
-                    last_message = await client.get_messages(dialog.id, limit=1)
-                    if last_message:
-                        last_message_date = last_message[0].date
-                        if last_message_date.replace(tzinfo=timezone.utc) < threshold_date:
-                            try:
-                                if dialog.is_channel:
-                                    await client(LeaveChannelRequest(
-                                        channel=dialog.entity
-                                    ))
-                                    if hasattr(dialog, 'username') and dialog.username:
-                                        logging.info(f"Вышли из канала {dialog.name} за неактивность. Ссылка: https://t.me/{dialog.username}")
+                while True:
+                    try:
+                        last_message = await client.get_messages(dialog.id, limit=1)
+                        if last_message:
+                            last_message_date = last_message[0].date
+                            if last_message_date.replace(tzinfo=timezone.utc) < threshold_date:
+                                try:
+                                    if dialog.is_channel:
+                                        await client(LeaveChannelRequest(
+                                            channel=dialog.entity
+                                        ))
+                                        if hasattr(dialog, 'username') and dialog.username:
+                                            logging.info(f"Вышли из канала {dialog.name} за неактивность. Ссылка: https://t.me/{dialog.username}")
+                                        else:
+                                            logging.info(f"Вышли из канала {dialog.name} за неактивность. ID: {dialog.id}")
                                     else:
-                                        logging.info(f"Вышли из канала {dialog.name} за неактивность. ID: {dialog.id}")
-                                else:
-                                    await client(DeleteChatUserRequest(
-                                        chat_id=dialog.entity.id,
-                                        user_id='me'
-                                    ))
-                                    if hasattr(dialog, 'username') and dialog.username:
-                                        logging.info(f"Вышли из чата {dialog.name} за неактивность. Ссылка: https://t.me/{dialog.username}")
-                                    else:
-                                        logging.info(f"Вышли из чата {dialog.name} за неактивность. ID: {dialog.id}")
-                            except ChatAdminRequiredError:
-                                logging.warning(f"Недостаточно прав для выхода из {dialog.name}")
-                except FloodWaitError as e:
-                    logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
-                    await asyncio.sleep(e.seconds)
+                                        await client(DeleteChatUserRequest(
+                                            chat_id=dialog.entity.id,
+                                            user_id='me'
+                                        ))
+                                        if hasattr(dialog, 'username') and dialog.username:
+                                            logging.info(f"Вышли из чата {dialog.name} за неактивность. Ссылка: https://t.me/{dialog.username}")
+                                        else:
+                                            logging.info(f"Вышли из чата {dialog.name} за неактивность. ID: {dialog.id}")
+                                except ChatAdminRequiredError:
+                                    logging.warning(f"Недостаточно прав для выхода из {dialog.name}")
+                        break
+                    except FloodWaitError as e:
+                        logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
+                        await asyncio.sleep(e.seconds)
                 bar()
     print("Неактивные чаты и каналы покинуты.")
     await client.disconnect()
