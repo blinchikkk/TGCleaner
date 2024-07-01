@@ -70,23 +70,30 @@ async def mute_all_channels(account):
     await client.start(phone_number)
     logging.info(f"Начинаю заглушение всех каналов для аккаунта {account[4]}")
 
+    dialogs_count = 0
     async for dialog in client.iter_dialogs():
         if dialog.is_channel:
-            while True:
-                try:
-                    await client(UpdateNotifySettingsRequest(
-                        peer=dialog.entity,
-                        settings=InputPeerNotifySettings(
-                            show_previews=False,
-                            silent=True,
-                            mute_until=int((datetime.now() + timedelta(weeks=1)).timestamp())
-                        )
-                    ))
-                    logging.info(f"Канал {dialog.name} заглушен.")
-                    break
-                except FloodWaitError as e:
-                    logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
-                    await asyncio.sleep(e.seconds)
+            dialogs_count += 1
+
+    with alive_bar(dialogs_count, title='Заглушение всех каналов...') as bar:
+        async for dialog in client.iter_dialogs():
+            if dialog.is_channel:
+                while True:
+                    try:
+                        await client(UpdateNotifySettingsRequest(
+                            peer=dialog.entity,
+                            settings=InputPeerNotifySettings(
+                                show_previews=False,
+                                silent=True,
+                                mute_until=int((datetime.now() + timedelta(weeks=1)).timestamp())
+                            )
+                        ))
+                        logging.info(f"Канал {dialog.name} заглушен.")
+                        break
+                    except FloodWaitError as e:
+                        logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
+                        await asyncio.sleep(e.seconds)
+                bar()
     print("Все каналы заглушены на 1 неделю.")
     await client.disconnect()
 
@@ -191,7 +198,7 @@ async def leave_inactive_chats_and_channels(account):
 async def main():
     selected_account = None
     while True:
-        os.system('cls' if os.name == 'nt' else 'clear')
+        os.system('cls' if os.name == 'nt' else 'clear')  # Очистка консоли
         print("======================================")
         print("        Telegram Account Manager      ")
         print("======================================")
