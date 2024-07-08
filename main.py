@@ -21,7 +21,7 @@ if not os.path.exists('sessions'):
 
 # Настройка логгера
 logging.basicConfig(filename='tg_cleaner.log', level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s - %(asctime)s - %(levelname)s - %(message)s')
 
 class TelegramAccountManager:
     def __init__(self):
@@ -89,7 +89,15 @@ class TelegramAccountManager:
         logging.info(f"Прокси обновлен для аккаунта {self.selected_account[4]}")
 
     async def get_client(self):
-        api_id, api_hash, phone_number, proxy = self.selected_account[1], self.selected_account[2], self.selected_account[3], self.selected_account[5]
+        api_id, api_hash, phone_number = self.selected_account[1], self.selected_account[2], self.selected_account[3]
+        proxy = self.selected_account[5] if len(self.selected_account) > 5 else None
+        if proxy:
+            proxy = tuple(proxy.split(','))  # Преобразование строки обратно в кортеж
+            if len(proxy) == 6:  # Если присутствует аутентификация для socks5 прокси
+                proxy = (proxy[0], proxy[1], int(proxy[2]), True, proxy[4], proxy[5])
+            else:
+                proxy = (proxy[0], proxy[1], int(proxy[2]))
+
         return TelegramClient(f'sessions/{phone_number}_session', api_id, api_hash, proxy=proxy)
 
     async def mute_all_channels(self, mute_duration):
@@ -99,7 +107,7 @@ class TelegramAccountManager:
 
         client = await self.get_client()
         await client.connect()
-        await client.start(phone_number=self.selected_account[3])
+        await client.start()
         logging.info(f"Начинаю заглушение всех каналов для аккаунта {self.selected_account[4]}")
 
         dialogs_count = 0
@@ -126,6 +134,7 @@ class TelegramAccountManager:
                         except FloodWaitError as e:
                             logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
                             await asyncio.sleep(e.seconds)
+                    await asyncio.sleep(0.1)  # Задержка перед каждой итерацией
                     bar()
         print("Все каналы заглушены.")
         await client.disconnect()
@@ -137,7 +146,7 @@ class TelegramAccountManager:
 
         client = await self.get_client()
         await client.connect()
-        await client.start(phone_number=self.selected_account[3])
+        await client.start()
         logging.info(f"Начинаю удаление неактивных чатов для аккаунта {self.selected_account[4]}")
 
         dialogs_count = 0
@@ -174,6 +183,7 @@ class TelegramAccountManager:
                         except FloodWaitError as e:
                             logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
                             await asyncio.sleep(e.seconds)
+                    await asyncio.sleep(0.1)  # Задержка перед каждой итерацией
                     bar()
         print("Неактивные чаты удалены.")
         await client.disconnect()
@@ -185,7 +195,7 @@ class TelegramAccountManager:
 
         client = await self.get_client()
         await client.connect()
-        await client.start(phone_number=self.selected_account[3])
+        await client.start()
         logging.info(f"Начинаю выход из неактивных каналов и чатов для аккаунта {self.selected_account[4]}")
 
         dialogs_count = 0
@@ -225,6 +235,7 @@ class TelegramAccountManager:
                         except FloodWaitError as e:
                             logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
                             await asyncio.sleep(e.seconds)
+                    await asyncio.sleep(0.1)  # Задержка перед каждой итерацией
                     bar()
         print("Неактивные чаты и каналы покинуты.")
         await client.disconnect()
