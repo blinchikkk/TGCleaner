@@ -8,7 +8,8 @@ async def initialize_db():
                 api_id TEXT NOT NULL,
                 api_hash TEXT NOT NULL,
                 phone_number TEXT NOT NULL,
-                username TEXT
+                username TEXT,
+                proxy TEXT
             )
         ''')
         await db.commit()
@@ -32,3 +33,15 @@ async def get_account_by_id(account_id):
         async with db.execute('SELECT * FROM accounts WHERE id = ?', (account_id,)) as cursor:
             account = await cursor.fetchone()
             return account
+
+async def update_account_proxy(account_id, proxy):
+    proxy_str = None
+    if proxy:
+        proxy_str = ','.join(map(str, proxy))
+    async with aiosqlite.connect('accounts.db') as db:
+        await db.execute('''
+            UPDATE accounts
+            SET proxy = ?
+            WHERE id = ?
+        ''', (proxy_str, account_id))
+        await db.commit()
