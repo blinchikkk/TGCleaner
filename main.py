@@ -3,7 +3,7 @@ import asyncio
 import logging
 from alive_progress import alive_bar
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError, FloodWaitError, ChatAdminRequiredError
+from telethon.errors import SessionPasswordNeededError, FloodWaitError, ChatAdminRequiredError, PeerIdInvalidError
 from telethon.tl.functions.account import UpdateNotifySettingsRequest
 from telethon.tl.functions.messages import DeleteHistoryRequest
 from telethon.tl.functions.channels import LeaveChannelRequest
@@ -73,7 +73,7 @@ class TelegramAccountManager:
 
         use_proxy = input("Использовать прокси? (да/нет): ").lower() == 'да'
         proxy = None
-        if use_proxy:
+        if (use_proxy):
             proxy_type = input("Тип прокси (socks5/socks4/http): ").lower()
             proxy_addr = input("Адрес прокси: ")
             proxy_port = int(input("Порт прокси: "))
@@ -179,6 +179,8 @@ class TelegramAccountManager:
                                             logging.info(f"Чат с {dialog.name} удален за неактивность. ID: {dialog.id}")
                                     except ChatAdminRequiredError:
                                         logging.warning(f"Недостаточно прав для удаления чата с {dialog.name}")
+                                    except PeerIdInvalidError:
+                                        logging.error(f"Неверный идентификатор чата с {dialog.name}.")
                             break
                         except FloodWaitError as e:
                             logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
@@ -231,6 +233,8 @@ class TelegramAccountManager:
                                                 logging.info(f"Вышли из чата {dialog.name} за неактивность. ID: {dialog.id}")
                                     except ChatAdminRequiredError:
                                         logging.warning(f"Недостаточно прав для выхода из {dialog.name}")
+                                    except PeerIdInvalidError:
+                                        logging.error(f"Неверный идентификатор канала или чата с {dialog.name}.")
                             break
                         except FloodWaitError as e:
                             logging.warning(f"Flood wait error: необходимо подождать {e.seconds} секунд.")
